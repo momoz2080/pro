@@ -258,12 +258,12 @@
     el.sidebar.classList.toggle('editing', S.editNav);
     el.btnEditNav.setAttribute('aria-pressed', String(S.editNav));
 
+    tree.append(h('button', { class: 'sb-item' + (S.sel.view === 'daily' ? ' on' : ''), type: 'button', onclick: selectDaily },
+      icon('calendar', 18), h('span', { class: 'grow' }, 'Daily log')));
     const qs = S.sections.find((x) => x.quick);
     const qn = qs ? S.pages.filter((p) => p.sectionId === qs.id).length : 0;
     tree.append(h('button', { class: 'sb-item' + (isQuickSel() ? ' on' : ''), type: 'button', onclick: selectQuick },
       icon('bolt', 18), h('span', { class: 'grow' }, 'Quick notes'), qn ? h('span', { class: 'sb-count' }, String(qn)) : null));
-    tree.append(h('button', { class: 'sb-item' + (S.sel.view === 'daily' ? ' on' : ''), type: 'button', onclick: selectDaily },
-      icon('calendar', 18), h('span', { class: 'grow' }, 'Daily log')));
     tree.append(h('div', { class: 'sb-label' }, 'Notebooks'));
 
     for (const nb of S.notebooks.filter((n) => !n.quick).sort(byOrder)) {
@@ -1225,6 +1225,11 @@
     renderEditor();
     renderAll();
     persistSel();
+    // Opened from a shortcut (…/?quick=1): start a voice note in Quick notes straight away.
+    if (/[?&]quick=1\b/.test(location.search)) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+      setTimeout(() => { newQuickNote({ voice: true }); startDict(); }, 250);
+    }
     if (!DB.ok) toast("This browser isn't letting the notebook save. Try a normal (not private) window.", { ms: 8000 });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});

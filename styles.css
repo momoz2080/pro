@@ -392,7 +392,7 @@ select.field { appearance: auto; }
 /* ---- note colors (not the app's plum or amber) ---- */
 .nc-sky   { --note: #E3F0FF; --note-dot: #4C9AEB; }
 .nc-mint  { --note: #DFF5E7; --note-dot: #35B37E; }
-.nc-rose  { --note: #FFE4EB; --note-dot: #EA5F86; }
+.nc-rose  { --note: #FBE6EB; --note-dot: #E0607F; }
 .nc-stone { --note: #E9ECEF; --note-dot: #8A949E; }
 .nc-aqua  { --note: #D8F4F2; --note-dot: #1FA7A0; }
 @media (prefers-color-scheme: dark) {
@@ -440,4 +440,11 @@ select.field { appearance: auto; }
   .pp-ink { margin-top: 10pt; border-top: .5pt dashed #bbb; padding-top: 4pt; }
   .pp-cap { font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; color: #8a8196; }
   .pp-ink svg { width: 100%; height: auto; }
+}
+
+/* Soft tinted notes: keep secondary text readable (placeholders, finished to-dos). */
+.ed-wrap[class*="nc-"], .pg[class*="nc-"] { --faint: #6F6780; --muted: #5F576D; }
+:root[data-theme="dark"] .ed-wrap[class*="nc-"], :root[data-theme="dark"] .pg[class*="nc-"] { --faint: #A096B4; --muted: #BDB4CE; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ed-wrap[class*="nc-"], :root:not([data-theme="light"]) .pg[class*="nc-"] { --faint: #A096B4; --muted: #BDB4CE; }
 }

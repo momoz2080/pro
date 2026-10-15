@@ -48,6 +48,7 @@
       <span class="si" id="searchIcon"></span>
       <input id="search" type="search" placeholder="Search all pages" autocomplete="off" enterkeyhint="search" aria-label="Search all pages">
     </div>
+    <div class="quickrow"><button class="btn btn-amber" id="btnQuick" type="button"><span id="btnQuickIc"></span>Quick note</button></div>
     <div class="weekstrip" id="weekstrip" hidden></div>
     <ul class="pagelist" id="pageList"></ul>
   </section>
@@ -56,7 +57,7 @@
     <div class="ed-empty" id="edEmpty">
       <div class="ed-empty-inner">
         <h2>Pick a page or make a new one</h2>
-        <p>Double-tap an empty spot to dictate. Two-finger tap on a note to write by hand.</p>
+        <p>Double-tap anywhere to dictate. Two-finger tap on a note to write by hand.</p>
       </div>
     </div>
 
@@ -65,8 +66,9 @@
         <button class="icon-btn only-narrow" id="btnBack" type="button" aria-label="Back to pages"></button>
         <span class="chip" id="tplChip"></span>
         <span class="spacer"></span>
+        <button class="color-btn" id="btnColor" type="button" aria-label="Note color" title="Note color" aria-haspopup="true"><i></i></button>
         <button class="btn btn-soft btn-sm" id="btnInk" type="button" aria-pressed="false" aria-label="Write by hand" title="Write by hand (two-finger tap on the note)"><span id="btnInkIc"></span><span class="lbl">Write</span></button>
-        <button class="btn btn-soft btn-sm" id="btnDictate" type="button" aria-pressed="false" aria-label="Dictate" title="Dictate (double-tap an empty spot)"><span id="btnDictIc"></span><span class="lbl">Dictate</span></button>
+        <button class="btn btn-soft btn-sm" id="btnDictate" type="button" aria-pressed="false" aria-label="Dictate" title="Dictate (double-tap anywhere)"><span id="btnDictIc"></span><span class="lbl">Dictate</span></button>
         <button class="icon-btn" id="btnMore" type="button" aria-label="More actions" aria-haspopup="menu"></button>
       </header>
       <div class="fmt" id="fmtbar" role="toolbar" aria-label="Block type">

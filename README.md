@@ -4,7 +4,9 @@ A private notebook for ideas. Type, talk to it, or write by hand. It installs li
 
 ## Gestures
 
-- **Double-tap an empty spot** to start dictation. Double-tap again (or press Stop) to end it.
+- **Double-tap anywhere on the app** (double-click on a computer) to start dictation. Double-tap again, or press Stop, to end it. It does not trigger on buttons or on words you have already typed, so you can still double-tap a word to select it. On the page list, it starts a new voice note.
+- **Quick note** button (and the Quick notes entry in the sidebar): a fast new note, kept in its own Quick notes section. Voice notes started from the list go there too.
+- **Color dot** at the top of a note: tap it to tint the note (Sky, Mint, Rose, Stone, Aqua). The color also shows in the page list.
 - **Two-finger tap on the note** to write by hand with a finger or pen. Tap with two fingers again, or press Done, to go back to typing.
 - Buttons for both (Dictate, Write) are always in the top bar if a gesture does not fire.
 - While writing by hand, one finger draws and two fingers scroll. If you use a pen, your palm is ignored.
@@ -34,7 +36,7 @@ icons/   icon.svg icon-192.png icon-512.png icon-maskable-512.png apple-touch-ic
 
 ## Backup
 
-Notes live only in this browser/device. Use **Backup and restore** in the sidebar to download a JSON file regularly, and keep it somewhere safe. Clearing site data or deleting the app erases the notes. **Export for Claude** copies a page or notebook as Markdown for pasting into a chat.
+Notes live only in this browser/device. Use **Backup and restore** in the sidebar to download a JSON file regularly, and keep it somewhere safe. Clearing site data or deleting the app erases the notes. **Export for Claude** copies a page, notebook or everything as Markdown for pasting into a chat, or saves it as a **PDF** (with handwriting and note colors). In the print screen choose Save as PDF; on iPhone use Share, then Save to Files.
 
 ## Privacy
 
@@ -42,7 +44,7 @@ Typing and handwriting stay on your device. Dictation uses your browser's speech
 
 ## Updating
 
-Upload the new files over the old ones in GitHub. Open the app twice; the first load fetches the update, the second shows it.
+Upload the new files over the old ones (this version changes the cache name, so it replaces the old one cleanly) in GitHub. Open the app twice; the first load fetches the update, the second shows it.
 
 ## Troubleshooting
 

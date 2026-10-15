@@ -1,11 +1,18 @@
 'use strict';
 /* Two touch gestures:
-   - doubleTap: two quick taps on an empty spot (double-click with a mouse)
+   - doubleTap: two quick taps anywhere on the app (double-click with a mouse), except on buttons and on words you have typed
    - twoFingerTap: two fingers touching down and lifting together, without moving */
 
 const Gestures = (() => {
-  const INTERACTIVE = 'button, a, input, select, textarea, label, summary, dialog, .menu, .no-gesture, [contenteditable="true"]';
-  const interactive = (t) => !!(t && t.closest && t.closest(INTERACTIVE));
+  const INTERACTIVE = 'button, a, select, input[type="search"], label, summary, dialog, .menu, .no-gesture, [contenteditable="true"]';
+  const interactive = (t) => {
+    if (!t || !t.closest) return false;
+    if (t.closest(INTERACTIVE)) return true;
+    // A text field that already has words in it keeps double-tap for selecting a word.
+    // An empty one does not, so the gesture works anywhere on the screen.
+    const f = t.closest('textarea, input');
+    return !!(f && f.value && f.value.trim());
+  };
 
   function doubleTap(handler, opts) {
     opts = opts || {};

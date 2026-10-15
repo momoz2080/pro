@@ -1,7 +1,7 @@
 /* Service worker: lets the app open instantly and work offline.
    Files are served from the cache first and refreshed in the background,
    so an update you upload to GitHub shows up the next time you open the app. */
-const CACHE = 'notebook-v1';
+const CACHE = 'notebook-v2';
 const FILES = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'js/util.js', 'js/db.js', 'js/voice.js', 'js/gestures.js', 'js/ink.js', 'js/app.js',

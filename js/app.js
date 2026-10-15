@@ -115,10 +115,11 @@
       ['h', 'Welcome'],
       ['p', 'Everything you write here stays on this device. Use Backup and restore in the sidebar to keep a copy.'],
       ['h', 'Try these'],
-      ['todo', 'Double-tap an empty spot (double-click on a computer) to start dictating. Double-tap again to stop.'],
+      ['todo', 'Double-tap anywhere on the screen (double-click on a computer) to start dictating. Double-tap again to stop.'],
       ['todo', 'Two-finger tap on a note to write by hand. Two-finger tap again, or press Done, to finish.'],
       ['todo', 'Press New page to start from a template.'],
       ['todo', 'Press Export for Claude to bundle a notebook for summaries and next steps.'],
+      ['todo', 'Press Quick note for a fast jot. Tap the color dot to color a note.'],
       ['decision', 'Delete this page whenever you like.'],
     ];
     const p = { id: uid(), sectionId: ideas[0].id, title: 'Start here', template: 'blank', blocks: welcome.map(([t, x]) => newBlock(t, x)), ink: null, created: now, updated: now, pinned: false };
@@ -137,7 +138,7 @@
       const nb = { id: uid(), name: 'Notebook', order: 0, created: Date.now() };
       S.notebooks.push(nb); DB.put('notebooks', nb).catch(saveFail);
     }
-    const anyNb = S.notebooks[0];
+    const anyNb = S.notebooks.find((n) => !n.quick) || S.notebooks[0];
     if (!sectionsOf(anyNb.id).length) {
       const s = { id: uid(), notebookId: anyNb.id, name: 'General', order: 0 };
       S.sections.push(s); DB.put('sections', s).catch(saveFail);
@@ -145,9 +146,38 @@
     return S.sections[0].id;
   }
 
+  /* Quick notes: one hidden notebook with one section, created when first needed. */
+  function quickSection() {
+    let sec = S.sections.find((x) => x.quick);
+    if (sec) return sec;
+    let nb = S.notebooks.find((n) => n.quick);
+    if (!nb) {
+      nb = { id: uid(), name: 'Quick notes', order: 999, created: Date.now(), quick: true };
+      S.notebooks.push(nb); DB.put('notebooks', nb).catch(saveFail);
+    }
+    sec = { id: uid(), notebookId: nb.id, name: 'Quick notes', order: 0, quick: true };
+    S.sections.push(sec); DB.put('sections', sec).catch(saveFail);
+    return sec;
+  }
+  const isQuickSel = () => { const x = secById(S.sel.sectionId); return S.sel.view === 'section' && !!(x && x.quick); };
+  function selectQuick() { selectSection(quickSection().id); }
+  function newQuickNote(opts) {
+    opts = opts || {};
+    const sec = quickSection();
+    const p = createPage('blank', sec.id);
+    const now = Date.now();
+    p.title = (opts.voice ? 'Voice note, ' : 'Quick note, ') + fmtShort(now) + ' ' + fmtTime(now);
+    savePage(p, true);
+    S.sel.view = 'section'; S.query = ''; el.search.value = '';
+    S.sel.sectionId = sec.id; S.sel.notebookId = sec.notebookId;
+    openPage(p.id);
+    if (!opts.voice && p.blocks[0]) focusBlock(p.blocks[0].id, 0);
+    return p;
+  }
+
   function createPage(tpl, sectionId) {
     const T = TEMPLATES[tpl] || TEMPLATES.blank;
-    const secId = sectionId || S.sel.sectionId || (S.sections[0] && S.sections[0].id) || ensureDefaults();
+    const secId = sectionId || S.sel.sectionId || (S.sections.find((x) => !x.quick) || {}).id || ensureDefaults();
     const now = Date.now();
     const p = { id: uid(), sectionId: secId, title: T.title(), template: tpl in TEMPLATES ? tpl : 'blank', blocks: T.blocks().map(([t, x]) => newBlock(t, x)), ink: null, created: now, updated: now, pinned: false };
     S.pages.push(p);
@@ -159,7 +189,7 @@
     if (!S.notebooks.length) ensureDefaults();
     let sec = secById(S.sel.sectionId);
     if (!sec) {
-      sec = S.sections.slice().sort(byOrder)[0];
+      sec = S.sections.filter((x) => !x.quick).sort(byOrder)[0] || S.sections.slice().sort(byOrder)[0];
       S.sel.sectionId = sec ? sec.id : null;
     }
     S.sel.notebookId = sec ? sec.notebookId : null;
@@ -228,13 +258,17 @@
     el.sidebar.classList.toggle('editing', S.editNav);
     el.btnEditNav.setAttribute('aria-pressed', String(S.editNav));
 
+    const qs = S.sections.find((x) => x.quick);
+    const qn = qs ? S.pages.filter((p) => p.sectionId === qs.id).length : 0;
+    tree.append(h('button', { class: 'sb-item' + (isQuickSel() ? ' on' : ''), type: 'button', onclick: selectQuick },
+      icon('bolt', 18), h('span', { class: 'grow' }, 'Quick notes'), qn ? h('span', { class: 'sb-count' }, String(qn)) : null));
     tree.append(h('button', { class: 'sb-item' + (S.sel.view === 'daily' ? ' on' : ''), type: 'button', onclick: selectDaily },
       icon('calendar', 18), h('span', { class: 'grow' }, 'Daily log')));
     tree.append(h('div', { class: 'sb-label' }, 'Notebooks'));
 
-    for (const nb of S.notebooks.slice().sort(byOrder)) {
+    for (const nb of S.notebooks.filter((n) => !n.quick).sort(byOrder)) {
       const open = S.expanded.has(nb.id);
-      const on = S.sel.view === 'section' && S.sel.notebookId === nb.id;
+      const on = S.sel.view === 'section' && S.sel.notebookId === nb.id && !isQuickSel();
       tree.append(h('div', { class: 'sb-row' },
         h('button', { class: 'sb-item' + (on ? ' on' : ''), type: 'button', 'aria-expanded': String(open), onclick: () => toggleNotebook(nb.id) },
           h('span', { class: 'chev' + (open ? ' open' : '') }, icon('chevron', 16)),
@@ -335,7 +369,7 @@
     return Ink.hasInk(p) ? 'Handwritten note' : 'Empty page';
   }
   const pageText = (p) => (p.title + '\n' + p.blocks.map((b) => b.text).join('\n')).toLowerCase();
-  const crumbOf = (p) => { const s = secById(p.sectionId); const n = s && nbById(s.notebookId); return (n ? n.name : '') + (s ? ', ' + s.name : ''); };
+  const crumbOf = (p) => { const s = secById(p.sectionId); const n = s && nbById(s.notebookId); if (s && s.quick) return 'Quick notes'; return (n ? n.name : '') + (s ? ', ' + s.name : ''); };
 
   function weekDays(anchor) {
     const m = new Date(anchor);
@@ -378,12 +412,12 @@
     el.lpSub.textContent = sub;
     el.pageList.replaceChildren();
     if (!pages.length) {
-      el.pageList.append(h('li', { class: 'list-empty' }, q ? 'Nothing matches that search.' : (S.sel.view === 'daily' ? 'No notes on this day.' : 'No pages yet. Press New page to start.')));
+      el.pageList.append(h('li', { class: 'list-empty' }, q ? 'Nothing matches that search.' : (S.sel.view === 'daily' ? 'No notes on this day.' : isQuickSel() ? 'No quick notes yet. Press Quick note, or double-tap anywhere and talk.' : 'No pages yet. Press New page to start.')));
       return;
     }
     for (const p of pages) {
       el.pageList.append(h('li', {},
-        h('button', { class: 'pg' + (p.id === S.sel.pageId ? ' on' : ''), type: 'button', onclick: () => openPage(p.id) },
+        h('button', { class: 'pg' + (p.id === S.sel.pageId ? ' on' : '') + (p.color ? ' nc-' + p.color : ''), type: 'button', onclick: () => openPage(p.id) },
           h('span', { class: 'pg-title' }, p.pinned ? icon('pin', 14) : null, h('span', {}, p.title || 'Untitled')),
           h('span', { class: 'pg-date' }, relTime(p.updated)),
           h('span', { class: 'pg-snip' }, (Ink.hasInk(p) ? 'Handwriting. ' : '') + snippet(p)),
@@ -482,12 +516,40 @@
     el.edWrap.hidden = !p;
     Ink.setPage(p || null);
     if (!p) return;
+    applyNoteColor(p);
     el.tplChip.textContent = tplLabel(p);
     el.tplChip.className = 'chip tpl-' + p.template;
     el.pgTitle.value = p.title;
     updateMeta();
     renderBlocks();
     el.edScroll.scrollTop = 0;
+  }
+
+  /* Note colors: soft paper tints, deliberately different from the plum and amber of the app. */
+  const NOTE_COLORS = [['', 'Plain'], ['sky', 'Sky'], ['mint', 'Mint'], ['rose', 'Rose'], ['stone', 'Stone'], ['aqua', 'Aqua']];
+  function applyNoteColor(p) {
+    const c = (p && p.color) || '';
+    el.edWrap.className = 'ed-wrap' + (c ? ' nc-' + c : '');
+    el.btnColor.className = 'color-btn' + (c ? ' nc-' + c : '');
+  }
+  function colorMenu() {
+    const p = curPage();
+    if (!p) return;
+    closeMenu();
+    const m = h('div', { class: 'menu colorpop', role: 'menu', 'aria-label': 'Note color' },
+      NOTE_COLORS.map(([k, name]) => h('button', {
+        class: 'cswatch' + (k ? ' nc-' + k : ' plain') + ((p.color || '') === k ? ' on' : ''), type: 'button', 'aria-label': name, title: name,
+        onclick: () => { closeMenu(); p.color = k; savePage(p, true); applyNoteColor(p); renderList(); },
+      })));
+    document.body.append(m);
+    const r = el.btnColor.getBoundingClientRect();
+    const mw = m.offsetWidth || 260;
+    m.style.top = Math.min(r.bottom + 6, window.innerHeight - 80) + 'px';
+    m.style.left = Math.max(8, Math.min(r.left + r.width / 2 - mw / 2, window.innerWidth - mw - 8)) + 'px';
+    const outside = (e) => { if (!m.contains(e.target)) closeMenu(); };
+    const esc = (e) => { if (e.key === 'Escape') closeMenu(); };
+    setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); }, 0);
+    m._cleanup = () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc, true); };
   }
 
   const fit = (t) => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
@@ -498,7 +560,7 @@
     if (b.type === 'todo') return 'To do';
     if (b.type === 'bullet') return 'List item';
     if (b.type === 'decision') return 'What did you decide?';
-    return p.blocks.length === 1 ? 'Type here, or double-tap to dictate' : '';
+    return p.blocks.length === 1 ? 'Type here, or double-tap anywhere to dictate' : '';
   }
 
   function blockEl(b, p) {
@@ -656,21 +718,12 @@
     return { blockId: nb.id, pos: 0 };
   }
 
-  function quickNote() {
-    const secId = S.sel.sectionId || (S.sections[0] && S.sections[0].id) || ensureDefaults();
-    const p = createPage('blank', secId);
-    const now = Date.now();
-    p.title = 'Voice note, ' + fmtShort(now) + ' ' + fmtTime(now);
-    savePage(p, true);
-    if (S.sel.view !== 'section' || S.query) { S.sel.view = 'section'; S.query = ''; el.search.value = ''; }
-    S.sel.sectionId = secId;
-    openPage(p.id);
-    return p;
-  }
+  const quickNote = () => newQuickNote({ voice: true });
 
   function startDict() {
     if (!Voice.supported) { toast(DICT_ERRORS.unsupported, { ms: 5000 }); return; }
-    if (!curPage()) quickNote();
+    // On a phone's page list the editor is out of sight, so start a fresh voice note instead of writing into a hidden page.
+    if (!curPage() || (isNarrow() && el.app.dataset.view !== 'editor')) quickNote();
     const t = dictTarget();
     if (!t) return;
     Dict.target = t;
@@ -830,6 +883,67 @@
     return head + books.map((nb) => '# ' + nb.name + '\n\n' + sectionsOf(nb.id).map((s) => mdSection(s, 2)).join('\n')).join('\n');
   }
 
+  /* ---- PDF: builds a clean printable copy; the browser's Print dialog saves it as PDF ---- */
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const PRINT_INK = { ink: '#241833', blue: '#2458E6', red: '#D6303A', green: '#17895A', hl: '#F5B52E' };
+  const PRINT_NOTE = { sky: ['#E3F0FF', '#4C9AEB'], mint: ['#DFF5E7', '#35B37E'], rose: ['#FFE4EB', '#EA5F86'], stone: ['#E9ECEF', '#8A949E'], aqua: ['#D8F4F2', '#1FA7A0'] };
+
+  function inkSvg(p) {
+    const ink = p.ink;
+    if (!ink || !ink.strokes || !ink.strokes.length) return '';
+    const parts = ink.strokes.map((st) => {
+      const pts = st.p, col = PRINT_INK[st.c] || PRINT_INK.ink;
+      const extra = st.k === 'hl' ? ' stroke-opacity=".38"' : '';
+      if (pts.length < 4) return '<circle cx="' + pts[0] + '" cy="' + pts[1] + '" r="' + (st.w / 2) + '" fill="' + col + '"' + extra.replace('stroke-', 'fill-') + '/>';
+      const d = [];
+      for (let i = 0; i < pts.length; i += 2) d.push(pts[i] + ',' + pts[i + 1]);
+      return '<polyline points="' + d.join(' ') + '" fill="none" stroke="' + col + '" stroke-width="' + st.w + '" stroke-linecap="round" stroke-linejoin="round"' + extra + '/>';
+    });
+    return '<div class="pp-ink"><div class="pp-cap">Handwriting</div><svg viewBox="0 0 800 ' + Math.max(80, ink.h || 400) + '" xmlns="http://www.w3.org/2000/svg">' + parts.join('') + '</svg></div>';
+  }
+  function printBlocks(blocks) {
+    return blocks.filter((b) => b.text && b.text.trim()).map((b) => {
+      const t = esc(b.text.trim());
+      if (b.type === 'h') return '<h3>' + t + '</h3>';
+      if (b.type === 'todo') return '<p class="pp-todo' + (b.done ? ' done' : '') + '"><span class="box">' + (b.done ? '&#10003;' : '') + '</span><span>' + t + '</span></p>';
+      if (b.type === 'bullet') return '<p class="pp-bul"><span>&bull;</span><span>' + t + '</span></p>';
+      if (b.type === 'decision') return '<p class="pp-dec"><b>Decision</b> ' + t + '</p>';
+      return '<p>' + t + '</p>';
+    }).join('');
+  }
+  function printPageHtml(p) {
+    const c = PRINT_NOTE[p.color];
+    const style = c ? ' style="background:' + c[0] + ';border-left-color:' + c[1] + '"' : '';
+    return '<section class="pp"' + style + '><h2>' + esc(p.title || 'Untitled') + '</h2><div class="pp-meta">' + esc(crumbOf(p)) + ' &middot; ' + esc(tplLabel(p)) + ' &middot; ' +
+      esc(new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })) + '</div>' + printBlocks(p.blocks) + inkSvg(p) + '</section>';
+  }
+  function buildPrintRoot(scope) {
+    flushAll();
+    const cp = curPage();
+    let pages;
+    if (scope === 'page' && cp) pages = [cp];
+    else {
+      const books = scope === 'all' ? S.notebooks.slice().sort(byOrder) : [nbById(S.sel.notebookId) || S.notebooks[0]].filter(Boolean);
+      pages = [];
+      books.forEach((nb) => sectionsOf(nb.id).forEach((sec) => pages.push(...S.pages.filter((p) => p.sectionId === sec.id).sort((a, b) => a.created - b.created))));
+      pages = pages.filter((p) => p.blocks.some((b) => b.text && b.text.trim()) || Ink.hasInk(p));
+    }
+    let root = document.getElementById('printRoot');
+    if (!root) { root = document.createElement('div'); root.id = 'printRoot'; document.body.append(root); }
+    const stamp = new Date().toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+    root.innerHTML = '<header class="pp-head"><h1>Notebook</h1><div>' + esc(stamp) + ' &middot; ' + pages.length + ' page' + (pages.length === 1 ? '' : 's') + '</div></header>' +
+      (pages.length ? pages.map(printPageHtml).join('') : '<p>No notes to print.</p>');
+    return pages.length;
+  }
+  function printPdf(scope) {
+    buildPrintRoot(scope);
+    const old = document.title;
+    document.title = 'Notebook ' + new Date().toISOString().slice(0, 10);
+    const back = () => { document.title = old; window.removeEventListener('afterprint', back); };
+    window.addEventListener('afterprint', back);
+    setTimeout(() => { try { window.print(); } catch (e) { toast("Couldn't open the print dialog."); } setTimeout(back, 4000); }, 80);
+  }
+
   function openExport(initial) {
     let scope = initial || 'notebook';
     if (scope === 'page' && !curPage()) scope = 'notebook';
@@ -848,10 +962,11 @@
       choices.forEach(([k, label]) => seg.append(h('button', { type: 'button', dataset: { scope: k }, onclick: () => { scope = k; refresh(); } }, label)));
       body.append(
         h('h3', {}, 'Export for Claude'),
-        h('p', { class: 'muted' }, 'Bundles your notes as one text file. Paste it into a chat with Claude and ask for a summary, themes or next steps.'),
+        h('p', { class: 'muted' }, 'Bundles your notes as text for Claude, or as a PDF. Paste the text into a chat with Claude and ask for a summary, themes or next steps. For a PDF, choose Save as PDF in the print screen (on iPhone: Share, then Save to Files).'),
         seg, out, stat,
         h('div', { class: 'dlg-actions' },
           h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => close('cancel') }, 'Close'),
+          h('button', { class: 'btn btn-soft', type: 'button', onclick: () => { printPdf(scope); } }, 'Save as PDF'),
           h('button', { class: 'btn btn-soft', type: 'button', onclick: () => { download('notes-' + new Date().toISOString().slice(0, 10) + '.md', out.value, 'text/markdown'); } }, 'Download .md'),
           h('button', { class: 'btn btn-primary', type: 'button', onclick: async () => { toast((await copyText(out.value)) ? 'Copied. Paste it into your chat with Claude.' : "Couldn't copy. Use Download instead."); } }, 'Copy text'))
       );
@@ -882,6 +997,7 @@
       blocks: (Array.isArray(p.blocks) ? p.blocks : []).map((b) => ({ id: b.id || uid(), type: ['p', 'h', 'todo', 'bullet', 'decision'].includes(b.type) ? b.type : 'p', text: String(b.text || ''), done: !!b.done })),
       ink: p.ink && Array.isArray(p.ink.strokes) ? p.ink : null,
       created: Number(p.created) || Date.now(), updated: Number(p.updated) || Date.now(), pinned: !!p.pinned,
+      color: ['sky', 'mint', 'rose', 'stone', 'aqua'].includes(p.color) ? p.color : '',
     }));
     pages.forEach((p) => { if (!p.blocks.length) p.blocks.push(newBlock('p')); });
     return { notebooks: nbs, sections: secs, pages };
@@ -989,7 +1105,7 @@
     ['app', 'sidebar', 'sbTree', 'scrim', 'listpane', 'lpTitle', 'lpSub', 'search', 'searchIcon', 'weekstrip', 'pageList', 'editor', 'edEmpty', 'edWrap',
       'tplChip', 'pgTitle', 'pgMeta', 'blocks', 'pageHost', 'edScroll', 'inkCanvas', 'fmtbar', 'dictBar', 'dictLive', 'dictLang', 'dictStop',
       'inkBar', 'inkUndo', 'inkSpace', 'inkDone', 'backupNote', 'btnEditNav', 'btnSettings', 'btnMenu', 'btnNewPage', 'btnBack', 'btnInk',
-      'btnInkIc', 'btnDictate', 'btnDictIc', 'btnMore', 'btnExportClaude', 'btnBackup',
+      'btnInkIc', 'btnColor', 'btnQuick', 'btnQuickIc', 'btnDictate', 'btnDictIc', 'btnMore', 'btnExportClaude', 'btnBackup',
     ].forEach((id) => { el[id] = document.getElementById(id); });
   }
 
@@ -1000,6 +1116,7 @@
     el.btnBack.append(icon('back'));
     el.btnMore.append(icon('more'));
     el.btnInkIc.append(icon('hand', 18));
+    el.btnQuickIc.append(icon('bolt', 18));
     el.btnDictIc.append(icon('mic', 18));
     el.searchIcon.append(icon('search', 18));
     el.btnNewPage.prepend(icon('plus', 18));
@@ -1023,6 +1140,8 @@
     el.btnBackup.addEventListener('click', openBackup);
     el.btnMore.addEventListener('click', pageMenu);
     el.btnInk.addEventListener('click', toggleInk);
+    el.btnColor.addEventListener('click', colorMenu);
+    el.btnQuick.addEventListener('click', () => newQuickNote());
     el.btnDictate.addEventListener('click', toggleDict);
     el.dictStop.addEventListener('click', stopDict);
     el.dictLang.addEventListener('change', () => { settings.lang = el.dictLang.value; saveSettings(); Voice.setLang(settings.lang); });
@@ -1055,7 +1174,7 @@
 
     bindInkBar();
 
-    // Gesture 1: double-tap an empty spot to start or stop dictation.
+    // Gesture 1: double-tap anywhere on the app to start or stop dictation.
     Gestures.doubleTap(() => {
       if (!settings.dbl || modalOpen()) return;
       toggleDict();
@@ -1109,7 +1228,7 @@
     if (!DB.ok) toast("This browser isn't letting the notebook save. Try a normal (not private) window.", { ms: 8000 });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
-    window.NB = { S, el, Dict, settings, openPage, createPage, curPage, buildMarkdown, backupData, toggleInk, toggleDict, renderAll, renderEditor }; // handy for debugging
+    window.NB = { buildPrintRoot, S, el, Dict, settings, openPage, createPage, curPage, buildMarkdown, backupData, toggleInk, toggleDict, renderAll, renderEditor }; // handy for debugging
     document.documentElement.setAttribute('data-ready', '1');
   }
 

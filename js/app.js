@@ -119,7 +119,7 @@
       ['todo', 'Two-finger tap on a note to write by hand. Two-finger tap again, or press Done, to finish.'],
       ['todo', 'Press New page to start from a template.'],
       ['todo', 'Press Export for Claude to bundle a notebook for summaries and next steps.'],
-      ['todo', 'Press Quick note for a fast jot. Tap the color dot to color a note.'],
+      ['todo', 'Two-finger tap on the page list or sidebar starts a Quick note. Tap the color dot to color a note. Press and hold a note for 2 seconds, or swipe it left, to delete it.'],
       ['decision', 'Delete this page whenever you like.'],
     ];
     const p = { id: uid(), sectionId: ideas[0].id, title: 'Start here', template: 'blank', blocks: welcome.map(([t, x]) => newBlock(t, x)), ink: null, created: now, updated: now, pinned: false };
@@ -412,18 +412,86 @@
     el.lpSub.textContent = sub;
     el.pageList.replaceChildren();
     if (!pages.length) {
-      el.pageList.append(h('li', { class: 'list-empty' }, q ? 'Nothing matches that search.' : (S.sel.view === 'daily' ? 'No notes on this day.' : isQuickSel() ? 'No quick notes yet. Press Quick note, or double-tap anywhere and talk.' : 'No pages yet. Press New page to start.')));
+      el.pageList.append(h('li', { class: 'list-empty' }, q ? 'Nothing matches that search.' : (S.sel.view === 'daily' ? 'No notes on this day.' : isQuickSel() ? 'No quick notes yet. Double-tap anywhere and talk, or tap with two fingers.' : 'No pages yet. Press New page to start.')));
       return;
     }
     for (const p of pages) {
-      el.pageList.append(h('li', {},
-        h('button', { class: 'pg' + (p.id === S.sel.pageId ? ' on' : '') + (p.color ? ' nc-' + p.color : ''), type: 'button', onclick: () => openPage(p.id) },
-          h('span', { class: 'pg-title' }, p.pinned ? icon('pin', 14) : null, h('span', {}, p.title || 'Untitled')),
-          h('span', { class: 'pg-date' }, relTime(p.updated)),
-          h('span', { class: 'pg-snip' }, (Ink.hasInk(p) ? 'Handwriting. ' : '') + snippet(p)),
-          h('span', { class: 'pg-meta' }, h('span', { class: 'chip tiny tpl-' + p.template }, tplLabel(p)), showCrumb ? h('span', { class: 'crumb' }, crumbOf(p)) : null)
-        )));
+      const btn = h('button', { class: 'pg' + (p.id === S.sel.pageId ? ' on' : '') + (p.color ? ' nc-' + p.color : ''), type: 'button' },
+        h('span', { class: 'pg-title' }, p.pinned ? icon('pin', 14) : null, h('span', {}, p.title || 'Untitled')),
+        h('span', { class: 'pg-date' }, relTime(p.updated)),
+        h('span', { class: 'pg-snip' }, (Ink.hasInk(p) ? 'Handwriting. ' : '') + snippet(p)),
+        h('span', { class: 'pg-meta' }, h('span', { class: 'chip tiny tpl-' + p.template }, tplLabel(p)), showCrumb ? h('span', { class: 'crumb' }, crumbOf(p)) : null));
+      const del = h('button', { class: 'pg-del', type: 'button', 'aria-label': 'Delete ' + (p.title || 'note'), onclick: () => { openRow = null; deletePage(p); } }, icon('trash', 18), 'Delete');
+      const li = h('li', { class: 'pgrow' }, del, btn);
+      rowGestures(li, btn, p);
+      el.pageList.append(li);
     }
+  }
+
+  /* Press and hold a note for 2 seconds to be asked to delete it. Swipe it left to reveal Delete. */
+  let openRow = null;
+  const closeRow = () => { if (openRow) { openRow.btn.style.transform = ''; openRow.li.classList.remove('reveal'); openRow = null; } };
+  document.addEventListener('pointerdown', (e) => { if (openRow && !openRow.li.contains(e.target)) closeRow(); }, true);
+  const HOLD_MS = 2000, REVEAL = 96;
+  function rowGestures(li, btn, p) {
+    let st = null, timer = 0, swallow = false;
+    const clear = () => { clearTimeout(timer); timer = 0; };
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    btn.addEventListener('click', (e) => {
+      if (swallow) { swallow = false; e.preventDefault(); e.stopPropagation(); return; }
+      if (openRow && openRow.li === li) { closeRow(); return; }
+      openPage(p.id);
+    });
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (openRow && openRow.li !== li) closeRow();
+      const base = openRow && openRow.li === li ? -REVEAL : 0;
+      st = { x: e.clientX, y: e.clientY, base, dx: 0, swiping: false, touch: e.pointerType !== 'mouse' };
+      clear();
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!st || st.swiping) return;
+        st.armed = true; swallow = true;
+        btn.classList.add('armed');
+        if (navigator.vibrate) { try { navigator.vibrate(25); } catch (err) { /* ignore */ } }
+      }, HOLD_MS);
+      btn.classList.add('holding');
+    });
+    btn.addEventListener('pointermove', (e) => {
+      if (!st) return;
+      const dx = e.clientX - st.x, dy = e.clientY - st.y;
+      if (!st.swiping && !st.armed && Math.hypot(dx, dy) > 10) { clear(); btn.classList.remove('holding'); }
+      if (st.touch && !st.swiping && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) { st.swiping = true; li.classList.add('reveal'); btn.style.transition = 'none'; }
+      if (st.swiping) {
+        st.dx = dx;
+        btn.style.transform = 'translateX(' + Math.max(-REVEAL - 24, Math.min(0, st.base + dx)) + 'px)';
+      }
+    });
+    const end = (e) => {
+      clear(); btn.classList.remove('holding', 'armed');
+      if (!st) return;
+      const s2 = st; st = null;
+      if (s2.armed && e && e.type === 'pointerup') {
+        // Ask once the finger is lifted, so the lift can't also tap the dialog.
+        setTimeout(async () => {
+          swallow = false;
+          if (await confirmBox({ title: 'Delete this note?', message: '"' + (p.title || 'Untitled') + '" will be removed. You can undo right after.', ok: 'Delete' })) deletePage(p);
+        }, 150);
+        return;
+      }
+      if (s2.armed) { setTimeout(() => { swallow = false; }, 60); return; }
+      if (s2.swiping) {
+        swallow = true;
+        btn.style.transition = '';
+        const x = s2.base + s2.dx;
+        if (x < -REVEAL / 2) { btn.style.transform = 'translateX(' + -REVEAL + 'px)'; openRow = { li, btn }; }
+        else { btn.style.transform = ''; li.classList.remove('reveal'); if (openRow && openRow.li === li) openRow = null; }
+        setTimeout(() => { swallow = false; }, 60);
+      }
+    };
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
+    btn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') end(); });
   }
   function shiftWeek(days) {
     const d = new Date(S.sel.day);
@@ -1106,7 +1174,7 @@
     ['app', 'sidebar', 'sbTree', 'scrim', 'listpane', 'lpTitle', 'lpSub', 'search', 'searchIcon', 'weekstrip', 'pageList', 'editor', 'edEmpty', 'edWrap',
       'tplChip', 'pgTitle', 'pgMeta', 'blocks', 'pageHost', 'edScroll', 'inkCanvas', 'fmtbar', 'dictBar', 'dictLive', 'dictLang', 'dictStop',
       'inkBar', 'inkUndo', 'inkSpace', 'inkDone', 'backupNote', 'btnEditNav', 'btnSettings', 'btnMenu', 'btnNewPage', 'btnBack', 'btnInk',
-      'btnInkIc', 'btnColor', 'btnQuick', 'btnQuickIc', 'btnDictate', 'btnDictIc', 'btnMore', 'btnExportClaude', 'btnBackup',
+      'btnInkIc', 'btnColor', 'btnDictate', 'btnDictIc', 'btnMore', 'btnExportClaude', 'btnBackup',
     ].forEach((id) => { el[id] = document.getElementById(id); });
   }
 
@@ -1117,7 +1185,6 @@
     el.btnBack.append(icon('back'));
     el.btnMore.append(icon('more'));
     el.btnInkIc.append(icon('hand', 18));
-    el.btnQuickIc.append(icon('bolt', 18));
     el.btnDictIc.append(icon('mic', 18));
     el.searchIcon.append(icon('search', 18));
     el.btnNewPage.prepend(icon('plus', 18));
@@ -1142,7 +1209,6 @@
     el.btnMore.addEventListener('click', pageMenu);
     el.btnInk.addEventListener('click', toggleInk);
     el.btnColor.addEventListener('click', colorMenu);
-    el.btnQuick.addEventListener('click', () => newQuickNote());
     el.btnDictate.addEventListener('click', toggleDict);
     el.dictStop.addEventListener('click', stopDict);
     el.dictLang.addEventListener('change', () => { settings.lang = el.dictLang.value; saveSettings(); Voice.setLang(settings.lang); });
@@ -1183,6 +1249,15 @@
       const inNote = !!(e && e.target && e.target.closest && e.target.closest('#editor')) && !!curPage() && !el.edWrap.hidden;
       startDict(inNote ? 'note' : 'quick');
     }, { ignore: (e) => Ink.active || !!(e.target.closest && e.target.closest('.sidebar, .scrim, .dictbar, .inkbar, .toast, .weekstrip')) });
+
+    // Two-finger tap anywhere except inside a note (page list, sidebar, empty screens) starts a typed Quick note.
+    Gestures.twoFingerTap(document, (e) => {
+      const t = e && e.target;
+      if (!t || !t.closest || Ink.active || modalOpen()) return;
+      if (t.closest('#editor, dialog, .menu, .dictbar, .inkbar, .toast')) return;
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch (err) { /* ignore */ } }
+      newQuickNote();
+    });
 
     // Gesture 2: two-finger tap on a note to write by hand (again to finish).
     Gestures.twoFingerTap(el.edScroll, () => {
@@ -1237,7 +1312,7 @@
     if (!DB.ok) toast("This browser isn't letting the notebook save. Try a normal (not private) window.", { ms: 8000 });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
-    window.NB = { buildPrintRoot, S, el, Dict, settings, openPage, createPage, curPage, buildMarkdown, backupData, toggleInk, toggleDict, renderAll, renderEditor }; // handy for debugging
+    window.NB = { selectQuick, buildPrintRoot, S, el, Dict, settings, openPage, createPage, curPage, buildMarkdown, backupData, toggleInk, toggleDict, renderAll, renderEditor }; // handy for debugging
     document.documentElement.setAttribute('data-ready', '1');
   }
 

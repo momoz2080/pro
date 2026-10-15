@@ -5,9 +5,10 @@ A private notebook for ideas. Type, talk to it, or write by hand. It installs li
 ## Gestures
 
 - **Double-tap anywhere on the app** (double-click on a computer) to start dictation. Double-tap again, or press Stop, to end it. It does not trigger on buttons or on words you have already typed, so you can still double-tap a word to select it. Where it lands: inside an open note it adds to that note; anywhere else (page list, sidebar, empty screens) it starts a new voice note in **Quick notes**.
-- **Quick notes** sit directly under Daily log in the sidebar. The Quick note button on the page list: a fast new note, kept in its own Quick notes section. Voice notes started from the list go there too.
+- **Quick notes** sit directly under Daily log in the sidebar. **Two-finger tap** anywhere outside a note (page list, sidebar, empty screens) starts a new typed quick note there. Inside a note, two fingers still switch handwriting on and off.
+- **Delete a note:** press and hold it in the page list for 2 seconds (it vibrates and turns pink, then lift your finger to be asked), or swipe it left and tap Delete. Either way you get an Undo for a few seconds.
 - **Color dot** at the top of a note: tap it to tint the note (Sky, Mint, Rose, Stone, Aqua). The color also shows in the page list.
-- **Two-finger tap on the note** to write by hand with a finger or pen. Tap with two fingers again, or press Done, to go back to typing.
+- **Two-finger tap on a note** to write by hand with a finger or pen. Tap with two fingers again, or press Done, to go back to typing.
 - Buttons for both (Dictate, Write) are always in the top bar if a gesture does not fire.
 - While writing by hand, one finger draws and two fingers scroll. If you use a pen, your palm is ignored.
 - Typing shortcuts: `- ` bullet, `[] ` checklist, `# ` heading, `> ` decision. Enter splits a block, Backspace merges it.

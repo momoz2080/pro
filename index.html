@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notebook</title>
+<meta name="description" content="A private notebook you can talk to or write in by hand.">
+<meta name="theme-color" content="#2E1F45">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Notebook">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app" id="app" data-view="list">
+
+  <aside class="sidebar" id="sidebar" aria-label="Notebooks">
+    <div class="sb-head">
+      <h1 class="brand">Notebook</h1>
+      <div class="sb-tools">
+        <button class="icon-btn on-dark" id="btnEditNav" type="button" aria-label="Edit notebooks" aria-pressed="false" title="Edit notebooks"></button>
+        <button class="icon-btn on-dark" id="btnSettings" type="button" aria-label="Settings" title="Settings"></button>
+      </div>
+    </div>
+    <nav class="sb-tree" id="sbTree"></nav>
+    <div class="sb-foot">
+      <button class="btn btn-amber" id="btnExportClaude" type="button">Export for Claude</button>
+      <button class="btn btn-outline" id="btnBackup" type="button">Backup and restore</button>
+      <p class="sb-note" id="backupNote"></p>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <section class="listpane" id="listpane" aria-label="Pages">
+    <header class="lp-head">
+      <button class="icon-btn only-narrow" id="btnMenu" type="button" aria-label="Open notebooks"></button>
+      <div class="lp-title">
+        <h2 id="lpTitle">Pages</h2>
+        <p id="lpSub"></p>
+      </div>
+      <button class="btn btn-primary btn-sm" id="btnNewPage" type="button">New page</button>
+    </header>
+    <div class="searchbox">
+      <span class="si" id="searchIcon"></span>
+      <input id="search" type="search" placeholder="Search all pages" autocomplete="off" enterkeyhint="search" aria-label="Search all pages">
+    </div>
+    <div class="weekstrip" id="weekstrip" hidden></div>
+    <ul class="pagelist" id="pageList"></ul>
+  </section>
+
+  <main class="editor" id="editor">
+    <div class="ed-empty" id="edEmpty">
+      <div class="ed-empty-inner">
+        <h2>Pick a page or make a new one</h2>
+        <p>Double-tap an empty spot to dictate. Two-finger tap on a note to write by hand.</p>
+      </div>
+    </div>
+
+    <div class="ed-wrap" id="edWrap" hidden>
+      <header class="ed-top">
+        <button class="icon-btn only-narrow" id="btnBack" type="button" aria-label="Back to pages"></button>
+        <span class="chip" id="tplChip"></span>
+        <span class="spacer"></span>
+        <button class="btn btn-soft btn-sm" id="btnInk" type="button" aria-pressed="false" aria-label="Write by hand" title="Write by hand (two-finger tap on the note)"><span id="btnInkIc"></span><span class="lbl">Write</span></button>
+        <button class="btn btn-soft btn-sm" id="btnDictate" type="button" aria-pressed="false" aria-label="Dictate" title="Dictate (double-tap an empty spot)"><span id="btnDictIc"></span><span class="lbl">Dictate</span></button>
+        <button class="icon-btn" id="btnMore" type="button" aria-label="More actions" aria-haspopup="menu"></button>
+      </header>
+      <div class="fmt" id="fmtbar" role="toolbar" aria-label="Block type">
+        <button type="button" data-type="p">Text</button>
+        <button type="button" data-type="h">Heading</button>
+        <button type="button" data-type="todo">Checklist</button>
+        <button type="button" data-type="bullet">List</button>
+        <button type="button" data-type="decision">Decision</button>
+      </div>
+      <div class="ed-scroll" id="edScroll">
+        <div class="page" id="pageHost">
+          <input class="title" id="pgTitle" type="text" placeholder="Untitled" autocomplete="off" aria-label="Page title" enterkeyhint="next">
+          <p class="meta" id="pgMeta"></p>
+          <div class="blocks" id="blocks"></div>
+          <div class="tail" id="tail"></div>
+          <canvas class="ink" id="inkCanvas" aria-label="Handwriting layer"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="dictbar no-gesture" id="dictBar" hidden role="status" aria-live="polite">
+  <span class="rec-dot" aria-hidden="true"></span>
+  <div class="dict-text">
+    <strong>Listening</strong>
+    <span id="dictLive">Speak now. Double-tap to stop.</span>
+  </div>
+  <select id="dictLang" aria-label="Dictation language"></select>
+  <button class="btn btn-danger btn-sm" id="dictStop" type="button">Stop</button>
+</div>
+
+<div class="inkbar no-gesture" id="inkBar" hidden role="toolbar" aria-label="Handwriting tools">
+  <div class="ink-group">
+    <button type="button" class="tool on" data-tool="pen" aria-label="Pen" title="Pen"></button>
+    <button type="button" class="tool" data-tool="hl" aria-label="Highlighter" title="Highlighter"></button>
+    <button type="button" class="tool" data-tool="eraser" aria-label="Eraser" title="Eraser"></button>
+  </div>
+  <div class="ink-group" id="inkColors">
+    <button type="button" class="swatch on" data-color="ink" style="--sw:#241833" aria-label="Black"></button>
+    <button type="button" class="swatch" data-color="blue" style="--sw:#2458E6" aria-label="Blue"></button>
+    <button type="button" class="swatch" data-color="red" style="--sw:#D6303A" aria-label="Red"></button>
+    <button type="button" class="swatch" data-color="green" style="--sw:#17895A" aria-label="Green"></button>
+  </div>
+  <div class="ink-group" id="inkSizes">
+    <button type="button" class="size" data-size="0" aria-label="Thin"><i style="--d:3px"></i></button>
+    <button type="button" class="size on" data-size="1" aria-label="Medium"><i style="--d:6px"></i></button>
+    <button type="button" class="size" data-size="2" aria-label="Thick"><i style="--d:10px"></i></button>
+  </div>
+  <div class="ink-group">
+    <button type="button" class="tool" id="inkUndo" aria-label="Undo" title="Undo"></button>
+    <button type="button" class="tool" id="inkSpace" aria-label="Add more space" title="Add more space"></button>
+    <button type="button" class="btn btn-amber btn-sm" id="inkDone">Done</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/util.js"></script>
+<script src="js/db.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/gestures.js"></script>
+<script src="js/ink.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

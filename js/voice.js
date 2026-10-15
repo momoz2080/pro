@@ -10,7 +10,8 @@ const Voice = (() => {
   let want = false;
   let lang = '';
   let hooks = {};
-  let lastFinal = { t: '', at: 0 };
+  let recent = [];      // finals already delivered, newest last
+  let processed = 0;    // how many results of the current session were already handled
   let startedAt = 0;
   let quickEnds = 0;
 
@@ -22,19 +23,34 @@ const Voice = (() => {
     r.interimResults = true;
     r.maxAlternatives = 1;
 
+    // Some browsers (notably Chrome on Android) resend earlier results in every event, repeat a final
+    // result, or return a final that repeats the previous one with a few words added. Each of those
+    // would type the same words two or three times, so only genuinely new words are passed on.
+    const fresh = (clean) => {
+      const now = Date.now();
+      recent = recent.filter((x) => now - x.at < 8000);
+      const low = clean.toLowerCase();
+      for (let i = recent.length - 1; i >= 0; i--) {
+        const prev = recent[i].t.toLowerCase();
+        if (low === prev && now - recent[i].at < 3000) return '';
+        if (prev.length >= 6 && low.startsWith(prev + ' ')) { recent.push({ t: clean, at: now }); return clean.slice(prev.length).trim(); }
+        if (prev.length >= 6 && prev.startsWith(low) && now - recent[i].at < 3000) return '';
+      }
+      recent.push({ t: clean, at: now });
+      return clean;
+    };
+
     r.onresult = (e) => {
       let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results.length < processed) processed = 0; // the browser started a fresh list
+      const from = Math.max(e.resultIndex || 0, processed);
+      for (let i = from; i < e.results.length; i++) {
         const res = e.results[i];
         const t = res[0] ? res[0].transcript : '';
         if (res.isFinal) {
-          const clean = t.trim();
-          const now = Date.now();
-          // Some Android versions repeat a final result; ignore an identical one that arrives right away.
-          if (clean && !(clean === lastFinal.t && now - lastFinal.at < 1500)) {
-            lastFinal = { t: clean, at: now };
-            if (hooks.final) hooks.final(clean);
-          }
+          processed = i + 1;
+          const out = fresh(t.trim());
+          if (out && hooks.final) hooks.final(out);
         } else {
           interim += t;
         }
@@ -59,7 +75,7 @@ const Voice = (() => {
       if (quickEnds > 5) { want = false; if (hooks.error) hooks.error('unavailable'); if (hooks.state) hooks.state(false); return; }
       setTimeout(() => {
         if (!want) return;
-        try { startedAt = Date.now(); r.lang = langNow(); r.start(); }
+        try { startedAt = Date.now(); processed = 0; r.lang = langNow(); r.start(); }
         catch (err) { want = false; if (hooks.state) hooks.state(false); }
       }, 250);
     };
@@ -72,7 +88,7 @@ const Voice = (() => {
     want = true;
     quickEnds = 0;
     if (!rec) rec = make();
-    try { startedAt = Date.now(); rec.lang = langNow(); rec.start(); }
+    try { startedAt = Date.now(); processed = 0; recent = []; rec.lang = langNow(); rec.start(); }
     catch (e) { /* already running */ }
     if (hooks.state) hooks.state(true);
     return true;

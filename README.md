@@ -4,7 +4,7 @@ A private notebook for ideas. Type, talk to it, or write by hand. It installs li
 
 ## Gestures
 
-- **Double-tap anywhere on the app** (double-click on a computer) to start dictation. Double-tap again, or press Stop, to end it. It does not trigger on buttons or on words you have already typed, so you can still double-tap a word to select it. On the page list, it starts a new voice note.
+- **Double-tap anywhere on the app** (double-click on a computer) to start dictation. Double-tap again, or press Stop, to end it. It does not trigger on buttons or on words you have already typed, so you can still double-tap a word to select it. Where it lands: inside an open note it adds to that note; anywhere else (page list, sidebar, empty screens) it starts a new voice note in **Quick notes**.
 - **Quick notes** sit directly under Daily log in the sidebar. The Quick note button on the page list: a fast new note, kept in its own Quick notes section. Voice notes started from the list go there too.
 - **Color dot** at the top of a note: tap it to tint the note (Sky, Mint, Rose, Stone, Aqua). The color also shows in the page list.
 - **Two-finger tap on the note** to write by hand with a finger or pen. Tap with two fingers again, or press Done, to go back to typing.

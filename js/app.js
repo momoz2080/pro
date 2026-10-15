@@ -720,10 +720,11 @@
 
   const quickNote = () => newQuickNote({ voice: true });
 
-  function startDict() {
+  function startDict(mode) {
     if (!Voice.supported) { toast(DICT_ERRORS.unsupported, { ms: 5000 }); return; }
+    if (mode === 'quick') quickNote();
     // On a phone's page list the editor is out of sight, so start a fresh voice note instead of writing into a hidden page.
-    if (!curPage() || (isNarrow() && el.app.dataset.view !== 'editor')) quickNote();
+    if (mode !== 'quick' && (!curPage() || (isNarrow() && el.app.dataset.view !== 'editor'))) quickNote();
     const t = dictTarget();
     if (!t) return;
     Dict.target = t;
@@ -1175,9 +1176,12 @@
     bindInkBar();
 
     // Gesture 1: double-tap anywhere on the app to start or stop dictation.
-    Gestures.doubleTap(() => {
+    // Inside an open note it dictates into that note; anywhere else it starts a new voice note in Quick notes.
+    Gestures.doubleTap((e) => {
       if (!settings.dbl || modalOpen()) return;
-      toggleDict();
+      if (Dict.on) { stopDict(); return; }
+      const inNote = !!(e && e.target && e.target.closest && e.target.closest('#editor')) && !!curPage() && !el.edWrap.hidden;
+      startDict(inNote ? 'note' : 'quick');
     }, { ignore: (e) => Ink.active || !!(e.target.closest && e.target.closest('.sidebar, .scrim, .dictbar, .inkbar, .toast, .weekstrip')) });
 
     // Gesture 2: two-finger tap on a note to write by hand (again to finish).
